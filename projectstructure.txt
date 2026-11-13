@@ -1,0 +1,336 @@
+# TERRATWIN - FILE GUIDE (purpose of each file and who owns it)
+# Each file shows: owner, when it is due (from the 36-hr timeline), purpose, and what to add.
+# Only the owner edits a file. Ask the owner for changes.
+
+# TEAM
+#   Person A: DATA - find, download, catalogue and validate Moon/Mars/Earth datasets
+#   Person B: SPATIAL + FEATURES - regions, raster processing, feature profiles, normalisation
+#   Person C: SIMILARITY ENGINE - scoring, weights, thresholds, ranking, scoring method
+#   Person D: FRONTEND - map, controls, priorities, results dashboard, charts, demo
+#   Person E: BACKEND + INTEGRATION - API, database, pipeline, saved profiles, README, deployment
+
+# MVP SCOPE (build this first): Mars, one region, 1 km radius, three parameters
+# (geology, topography, thermal), 5-10 Earth candidates, Top 10 ranking.
+# Files marked 'after MVP' are stubs only until the core pipeline works.
+
+# AGREE IN THE FIRST 2 HRS: feature_schema.py (B), architecture.md API contract (E),
+# scoring_methodology.md (C), ui_wireframes.md (D), catalog.yaml (A).
+
+terratwin/
+    .env.example
+        # Person E | due: 0-2 hrs
+        # Purpose: Template of environment variables.
+        # Add: DATABASE_URL; API keys for data services if any.
+    .gitignore
+        # Person E | due: 0-2 hrs
+        # Purpose: Files git must ignore.
+        # Add: __pycache__/, .env, node_modules/, .next/; datasets/raw/ and datasets/processed/ (large files).
+    README.md
+        # Person E | due: 0-2 hrs / 34-36 hrs
+        # Purpose: Project overview and how to run it.
+        # Add: What TerraTwin does (2-3 lines); Setup and run commands.
+    docker-compose.yml
+        # Person E | due: 2-6 hrs
+        # Purpose: Runs PostgreSQL + PostGIS locally.
+        # Add: postgis service and port; Volume for the database.
+    requirements.txt
+        # Person E | due: 0-2 hrs
+        # Purpose: Python dependencies.
+        # Add: fastapi, uvicorn, sqlalchemy, geoalchemy2, psycopg2-binary; numpy, scipy, scikit-learn, rasterio, geopandas, shapely, pyproj.
+    backend/
+        pipeline.py
+            # Person E | due: 10-22 hrs
+            # Purpose: Glue that runs region -> target profile -> candidate profiles -> similarity -> ranking.
+            # Add: Call B's build_profile for the target; Load pre-processed candidate profiles (cached, never re-processed per search).
+        api/
+            main.py
+                # Person E | due: 2-6 hrs
+                # Purpose: FastAPI entry point.
+                # Add: Create app, CORS for the frontend; Register routers.
+            schemas.py
+                # Person E | due: 2-6 hrs
+                # Purpose: Request and response models.
+                # Add: SearchRequest: planet, lat, lon, radius_m, priorities/weights, thresholds; SearchResponse: ranked candidates with per-parameter scores and quality.
+            routes/
+                bookmarks.py
+                    # Person E | due: 22-26 hrs
+                    # Purpose: Bookmark endpoints.
+                    # Add: POST/GET/DELETE /bookmarks.
+                candidates.py
+                    # Person E | due: 14-22 hrs
+                    # Purpose: Endpoint for candidate details.
+                    # Add: GET /candidates/{id}.
+                planets.py
+                    # Person E | due: 6-10 hrs
+                    # Purpose: Endpoints for planets and parameter list.
+                    # Add: GET /planets; GET /parameters (from feature_schema).
+                profiles.py
+                    # Person E | due: 22-26 hrs
+                    # Purpose: CRUD for saved research profiles.
+                    # Add: POST/GET/PUT/DELETE /profiles.
+                regions.py
+                    # Person E | due: 6-14 hrs
+                    # Purpose: Endpoint that returns the region polygon and target profile.
+                    # Add: POST /region -> polygon + target feature profile (calls B).
+                search.py
+                    # Person E | due: 10-18 hrs
+                    # Purpose: Main search endpoint.
+                    # Add: POST /search -> runs pipeline and returns Top 10; Return clear errors for bad input.
+        data_acquisition/
+            earth_data.py
+                # Person A | due: 2-14 hrs
+                # Purpose: Retrieve Earth datasets (SRTM, MODIS, Landsat, USGS geology) for candidate regions.
+                # Add: get_earth_elevation(bbox), get_earth_temperature(bbox), get_earth_geology(bbox); Pre-download for the MVP candidates; do not download live per search.
+            mars_data.py
+                # Person A | due: 2-10 hrs
+                # Purpose: Retrieve Martian datasets (MOLA elevation, CRISM mineralogy) for a region.
+                # Add: get_mars_elevation(bbox) and get_mars_mineralogy(bbox); Download once, cache in datasets/raw/.
+            moon_data.py
+                # Person A | due: 6-14 hrs
+                # Purpose: Retrieve lunar datasets (elevation from Lunar Orbital Data Explorer) for a region.
+                # Add: get_moon_elevation(bbox); Same return format as mars_data.py.
+            validate.py
+                # Person A | due: 14-22 hrs
+                # Purpose: Validate downloaded datasets before B processes them.
+                # Add: Check file opens, CRS present, no empty or all-NaN rasters; Check resolution is adequate for a 1 km radius.
+        database/
+            models.py
+                # Person E | due: 2-6 hrs
+                # Purpose: Database tables.
+                # Add: ResearchProfile, Bookmark, SearchHistory, CandidateProfile (cached features), DatasetVersion; Geometry columns via PostGIS.
+            queries.py
+                # Person E | due: 6-26 hrs
+                # Purpose: Reusable database queries.
+                # Add: Get candidates, save/load profiles, history.
+            session.py
+                # Person E | due: 2-6 hrs
+                # Purpose: Database connection and session.
+                # Add: SQLAlchemy engine for PostgreSQL/PostGIS; SQLite fallback for quick local testing.
+        feature_extraction/
+            environment.py
+                # Person B | due: after MVP
+                # Purpose: Dust, erosion and atmospheric characteristics (post-MVP).
+                # Add: Return unavailable status for now; Implement after the first three parameters work.
+            feature_schema.py
+                # Person B | due: 0-2 hrs
+                # Purpose: Single source of truth for feature names, units, ranges and quality flags.
+                # Add: FEATURES: geology, topography, thermal (MVP) + water_ice, environment, illumination (later); Each feature: name, unit, min, max, comparability type.
+            geology.py
+                # Person B | due: 10-14 hrs
+                # Purpose: Extract rock composition and mineral indicators (MVP parameter).
+                # Add: Mars: CRISM mineral indices | Earth: USGS lithology classes; Map both onto a shared set of categories (agree with A and C).
+            illumination.py
+                # Person B | due: after MVP
+                # Purpose: Solar exposure and shadow characteristics (post-MVP).
+                # Add: Return unavailable status for now; Implement after the first three parameters work.
+            profile_builder.py
+                # Person B | due: 10-14 hrs
+                # Purpose: Build the full feature profile for any location (target or Earth candidate).
+                # Add: build_profile(planet, lat, lon, radius_m) -> dict of features + data_quality; Call the extraction modules; keep this signature stable, E calls it.
+            thermal.py
+                # Person B | due: 10-14 hrs
+                # Purpose: Extract surface temperature, range and thermal behaviour (MVP parameter).
+                # Add: Earth: MODIS land surface temperature; Mars/Moon: use available thermal datasets (agree with A).
+            topography.py
+                # Person B | due: 6-10 hrs
+                # Purpose: Extract elevation, slope, roughness and terrain variation (MVP parameter).
+                # Add: Compute slope and roughness from DEM; Return a dict matching feature_schema.
+            water_ice.py
+                # Person B | due: after MVP
+                # Purpose: Water-ice and hydrated-mineral indicators (post-MVP).
+                # Add: Return unavailable status for now, never 0 similarity; Implement when core pipeline works.
+        research_profiles/
+            bookmarks.py
+                # Person E | due: 22-26 hrs
+                # Purpose: Logic for bookmarked Earth locations.
+                # Add: Add, list, remove.
+            export.py
+                # Person E | due: after MVP
+                # Purpose: Export reports as PDF and CSV (post-MVP).
+                # Add: CSV first, PDF later; Include limitations statement.
+            saved_searches.py
+                # Person E | due: 22-26 hrs
+                # Purpose: Logic for saved profiles and search history.
+                # Add: Save configuration + results + dataset versions; Re-run a saved search.
+            scenario_comparison.py
+                # Person E | due: after MVP
+                # Purpose: Compare two configurations or priority changes (post-MVP).
+                # Add: Re-rank with new priorities and show how the Top 10 changes.
+        similarity_engine/
+            explain.py
+                # Person C | due: 18-22 hrs
+                # Purpose: Generate explainable output: similarities, differences and data quality per candidate.
+                # Add: List best-matching and worst-matching parameters; Short text summary per candidate for D's detail panel.
+            normalisation.py
+                # Person B | due: 14-18 hrs
+                # Purpose: Normalise features to a common scale and handle missing data.
+                # Add: Min-max or z-score normalisation using ranges from feature_schema; Store scaler values so target and candidates use the same scale.
+            ranking.py
+                # Person C | due: 14-18 hrs
+                # Purpose: Weighted overall score S = sum(w*s)/sum(w) and Top 10 ranking.
+                # Add: Apply thresholds first, then weighted score; Sort descending, handle ties, return top 10.
+            similarity.py
+                # Person C | due: 2-10 hrs
+                # Purpose: Parameter-specific similarity functions (score 0-100% per parameter).
+                # Add: parameter_similarity(feature, target_value, candidate_value) -> 0-100; Different method per type (numeric distance, categorical overlap).
+            thresholds.py
+                # Person C | due: 10-14 hrs
+                # Purpose: Filter candidates that fail minimum similarity thresholds.
+                # Add: Defaults: High >= 75%, Medium/Low >= 50%, Critical individually configurable; User-configurable thresholds.
+            weighting.py
+                # Person C | due: 10-14 hrs
+                # Purpose: Convert user priorities or custom weights into normalised weights.
+                # Add: Priority mode: Critical/High/Medium/Low/Excluded -> weights; Custom mode: percentages that must total 100.
+        spatial_processing/
+            coordinate_transform.py
+                # Person B | due: 2-6 hrs
+                # Purpose: Convert coordinates between planet-specific reference systems (Mars, Moon, Earth).
+                # Add: Use pyproj with planetary spheres/ellipsoids (Mars and Moon radii, not Earth); lonlat_to_projected() and projected_to_lonlat().
+            raster_processing.py
+                # Person B | due: 6-10 hrs
+                # Purpose: Clip rasters to a region and compute basic statistics.
+                # Add: clip_raster(raster, polygon); zonal_stats(): mean, min, max, std.
+            region_selection.py
+                # Person B | due: 2-6 hrs
+                # Purpose: Create the circular analysis region using planetary surface geometry.
+                # Add: region_from_point(planet, lat, lon, radius_m) -> polygon; Do NOT draw a simple lat/lon circle; buffer in a projected CRS.
+    datasets/
+        catalog.yaml
+            # Person A | due: 0-10 hrs
+            # Purpose: Catalogue of every dataset used (planetary and Earth) with source, licence and resolution.
+            # Add: One entry per dataset: name, url, planet, parameter, resolution, crs, units, licence; Moon elevation: Lunar Orbital Data Explorer | Mars elevation: MOLA | Mars mineralogy: CRISM.
+        earth_candidates/
+            candidates.csv
+                # Person A | due: 10-14 hrs
+                # Purpose: Earth candidate locations for the MVP (5-10 sites) that B profiles and C ranks.
+                # Add: Columns: id, name, lat, lon, country, notes, data_quality; Suggested MVP sites to consider: Atacama Desert, Antarctic Dry Valleys, Iceland highlands, Death Valley, Rio Tinto (Spain).
+    docs/
+        architecture.md
+            # Person E | due: 0-2 hrs
+            # Purpose: System architecture and API contract.
+            # Add: Pipeline diagram (7 stages); Endpoint list with JSON request/response examples.
+        data_sources.md
+            # Person A | due: 22-26 hrs / 34-36 hrs
+            # Purpose: Human-readable documentation of datasets, sources, licences and validation results.
+            # Add: Table of datasets with links; Known gaps and resolution limits.
+        demo_script.md
+            # Person D | due: 34-36 hrs
+            # Purpose: Step-by-step plan for the final demo.
+            # Add: Demo: Mars, Jezero region, 1 km, three parameters; Exact click path and expected result.
+        feature_comparability.md
+            # Person A | due: 6-14 hrs
+            # Purpose: Explains which parameters are directly comparable between Mars/Moon and Earth.
+            # Add: Table: DIRECT measurement / PROCESS-BASED analogy / NOT COMPARABLE; Agree the table with B and C; scoring depends on it.
+        limitations.md
+            # Person E | due: 30-36 hrs
+            # Purpose: Honest statement of scientific and technical limitations.
+            # Add: Not all parameters are comparable; Score is analog similarity, not mission suitability.
+        scoring_methodology.md
+            # Person C | due: 0-2 hrs / 34-36 hrs
+            # Purpose: Plain-language explanation of the scoring method for judges.
+            # Add: Define the method in the first 2 hrs; Formula, thresholds, presets.
+        spatial_and_feature_notes.md
+            # Person B | due: 34-36 hrs
+            # Purpose: Documents GIS methods, assumptions and feature definitions.
+            # Add: Region method; Feature definitions and units.
+        ui_wireframes.md
+            # Person D | due: 0-2 hrs
+            # Purpose: UI layout and wireframes.
+            # Add: Describe/sketch every screen; Agree with the team.
+    frontend/
+        README.md
+            # Person D | due: 0-2 hrs
+            # Purpose: Frontend setup notes (React/Next.js + CesiumJS).
+            # Add: Create the app with: npx create-next-app@latest . (inside frontend/); Install CesiumJS and Plotly.
+        components/
+            CoordinateInput.jsx
+                # Person D | due: 6-10 hrs
+                # Purpose: Manual latitude/longitude entry synced with the map.
+                # Add: Validate ranges; Sync with map clicks.
+            PlanetSelector.jsx
+                # Person D | due: 2-6 hrs
+                # Purpose: Moon / Mars selection.
+                # Add: Two options; Mars default for MVP.
+            PriorityPanel.jsx
+                # Person D | due: 10-14 hrs
+                # Purpose: Parameter priorities (Critical/High/Medium/Low/Excluded) or custom % weights, plus presets.
+                # Add: Toggle between priority mode and custom weights; Weights must total 100%.
+            RadiusSelector.jsx
+                # Person D | due: 6-10 hrs
+                # Purpose: Radius choice: 500 m, 1 km, 5 km, 10 km.
+                # Add: Default 1 km.
+            ThresholdPanel.jsx
+                # Person D | due: 10-14 hrs
+                # Purpose: Minimum similarity threshold controls.
+                # Add: Defaults 75% (High) and 50% (Medium/Low); Per-critical-parameter thresholds.
+        dashboard/
+            CandidateDetail.jsx
+                # Person D | due: 18-22 hrs
+                # Purpose: Detail panel for one candidate.
+                # Add: Coordinates, overall and per-parameter scores; Similarities and differences (from explain.py).
+            ComparisonCharts.jsx
+                # Person D | due: 22-26 hrs
+                # Purpose: Charts comparing target vs candidate parameters (Plotly).
+                # Add: Radar chart of parameter scores; Bar chart across candidates.
+            ResultsTable.jsx
+                # Person D | due: 14-22 hrs
+                # Purpose: Ranked Top 10 table.
+                # Add: Rank, name, overall score, qualifying status; Loading, empty and 'no qualifying candidates' states.
+        lib/
+            api.js
+                # Person D | due: 6-10 hrs
+                # Purpose: All calls to the backend in one place.
+                # Add: BASE_URL config; search(), getCandidates(), saveProfile(), listProfiles(), addBookmark().
+        maps/
+            CandidateMarkers.jsx
+                # Person D | due: 14-18 hrs
+                # Purpose: Earth map markers for the Top 10, coloured by similarity.
+                # Add: Colour scale by score; Click marker -> open CandidateDetail.
+            CesiumMap.jsx
+                # Person D | due: 2-10 hrs
+                # Purpose: Interactive 3D map for Moon, Mars and Earth.
+                # Add: Init CesiumJS with Moon/Mars imagery; Click to select coordinates.
+            TargetRegionLayer.jsx
+                # Person D | due: 6-10 hrs
+                # Purpose: Draws the analysis circle on the planetary map.
+                # Add: Circle updates with the radius selector; Use region polygon returned by the backend if available.
+        pages/
+            index.jsx
+                # Person D | due: 2-6 hrs
+                # Purpose: Main page that connects planet selector, map, priorities and results.
+                # Add: Layout: map + control panel + results area; Hold search state (planet, lat, lon, radius, priorities, thresholds).
+        profile_manager/
+            ProfileManager.jsx
+                # Person D | due: 22-26 hrs
+                # Purpose: Save, open and delete research profiles and bookmarks.
+                # Add: Calls E's profile and bookmark endpoints; Reload a saved configuration into the page.
+    notebooks/
+        01_feasibility.ipynb
+            # Person C | due: 14-26 hrs
+            # Purpose: Phase 1 deliverable: notebook showing a real Mars-to-Earth comparison end to end.
+            # Add: Use one Martian region and 5-10 Earth candidates; Combine A's data, B's profiles and C's scoring.
+    tests/
+        test_api.py
+            # Person E | due: 26-30 hrs
+            # Purpose: API endpoint tests.
+            # Add: Health, search, profile round-trip; Bad input returns clear errors.
+        test_data_acquisition.py
+            # Person A | due: 18-26 hrs
+            # Purpose: Tests that dataset retrieval and validation work.
+            # Add: Test each get_* function returns data + metadata; Test validate.py flags a corrupted sample file.
+        test_feature_extraction.py
+            # Person B | due: 18-26 hrs
+            # Purpose: Tests for feature extraction and normalisation.
+            # Add: Profile contains every feature in the schema; Normalised values lie in 0-1.
+        test_integration.py
+            # Person E | due: 26-30 hrs
+            # Purpose: End-to-end test of the MVP pipeline.
+            # Add: Mars target -> Top results returned with scores and quality flags.
+        test_similarity_engine.py
+            # Person C | due: 18-26 hrs
+            # Purpose: Tests for similarity, weighting, thresholds and ranking.
+            # Add: Identical profiles score 100%; Weights normalise correctly.
+        test_spatial_processing.py
+            # Person B | due: 18-26 hrs
+            # Purpose: Tests for region geometry, coordinate transforms and raster clipping.
+            # Add: 1 km region area is about 3.14 km2 on the planetary sphere; Round-trip coordinate conversion matches.
